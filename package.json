@@ -29,16 +29,17 @@
     "lib",
     "bin",
     "demo",
+    "bench",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/",
-    "test:serial": "node --test --test-concurrency=1 --experimental-test-isolation=none test/",
-    "check": "node --test test/",
+    "test": "node --test",
+    "test:serial": "node --test --test-concurrency=1 --experimental-test-isolation=none",
+    "check": "node --test",
     "demo": "node demo/run.mjs",
-    "bench": "node test/benchmark.mjs",
+    "bench": "node bench/run.mjs",
     "install:dsh": "node bin/install.mjs"
   },
   "keywords": [

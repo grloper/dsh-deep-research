@@ -16,34 +16,47 @@ import { dirname, join } from 'node:path'
 const testDir = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(testDir, '..')
 
-test('every test file in test/ is discoverable by the runner', () => {
+test('test/ contains only real test files, so runner discovery stays clean', () => {
   const files = readdirSync(testDir).filter((f) => f.endsWith('.js') || f.endsWith('.mjs'))
   const testFiles = files.filter((f) => f.endsWith('.test.js'))
 
-  assert.ok(testFiles.length >= 10, `expected the full suite, found ${testFiles.length} test files`)
+  assert.ok(testFiles.length >= 15, `expected the full suite, found ${testFiles.length} test files`)
 
-  // Node's directory-mode discovery matches *.test.*, *-test.*, and test.*.
-  // Anything else in test/ is a helper and must not look like a test file.
-  for (const f of files) {
-    if (f.endsWith('.test.js')) continue
-    assert.ok(
-      !/(^|[.-])test\.(js|mjs)$/.test(f),
-      `${f} would be picked up as a test file but is not named *.test.js`,
-    )
-  }
+  // Node discovers test files by walking the working directory, so a non-test
+  // helper parked in test/ gets executed as if it were a test. The benchmark
+  // used to live here and was run as part of the suite; it now lives in bench/.
+  assert.deepEqual(
+    files.filter((f) => !f.endsWith('.test.js')),
+    [],
+    'test/ must contain only *.test.js files',
+  )
 })
 
-test('the test script uses a pattern Node 20 can actually resolve', () => {
+test('the test script uses an invocation Node 20 can actually resolve', () => {
   const pkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'))
   for (const name of ['test', 'test:serial', 'check']) {
     const script = pkg.scripts[name]
     assert.ok(script, `missing script: ${name}`)
+    assert.match(script, /node --test/, `script "${name}" must invoke the node test runner`)
     assert.ok(
       !script.includes('**'),
       `script "${name}" uses a ** glob, which Node 20 does not expand and Windows shells do not either`,
     )
-    assert.match(script, /node --test/, `script "${name}" must invoke the node test runner`)
+    // `node --test <dir>` treats the path as a module specifier and fails with
+    // "Cannot find module". Bare `node --test` walks the cwd, which is the only
+    // form that behaves identically on Node 20 through 24 and on both shells.
+    // Compare positional arguments only; --test-* flags are not paths.
+    const positional = script
+      .split(/\s+/)
+      .slice(1) // drop "node"
+      .filter((token) => !token.startsWith('-'))
+    assert.deepEqual(
+      positional,
+      [],
+      `script "${name}" must not pass a path to --test (found: ${positional.join(', ')})`,
+    )
   }
+  assert.match(pkg.scripts.bench, /bench\/run\.mjs/, 'bench must point at the relocated benchmark')
 })
 
 test('declared engine range matches what the scripts actually support', () => {
