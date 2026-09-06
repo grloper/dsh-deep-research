@@ -7,7 +7,7 @@
 **A research engine that can't cite something a source never said.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-191%20passing-brightgreen.svg)](#verification)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-blue.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
 
@@ -128,6 +128,17 @@ Stops on `resolved`, `no-progress` (a whole round added no new independent evide
 
 Modes: `quick` (1 round) · `standard` (3) · `deep` (6) · `forensic` (12, requires 3 independent origins).
 
+### `research_recall` — what do we already know?
+
+Queries the accumulated evidence graph before you spend a single search.
+
+```
+↺ q2: reusing a prior verification (SUPPORTED, 94%) from the evidence graph.
+Recall: 2/5 sub-question(s) had reusable prior findings.
+```
+
+Stale findings are **excluded automatically** by volatility horizon — a cached stock price is never reused, a cached mathematical constant is. This is the compounding part: every investigation makes the next one cheaper.
+
 ---
 
 ## How it works
@@ -149,7 +160,9 @@ INTAKE ──> RECALL ──> ACQUIRE ──> ADJUDICATE ──> GROUND ──> 
 
   Two rules that matter: a claim backed by **one origin is never "settled"** no matter how many outlets republished it, and **credible dissent blocks a SUPPORTED verdict** outright.
 - **M4 — Tiered acquisition.** plain fetch → Jina Reader → crawl4ai/scrapling → camoufox/patchright → OCR. Every tier failure is **surfaced, never silently swallowed.**
-- **M5 — Compounding evidence graph.** Verified claims persist with per-claim freshness (immutable 5y / slow 6mo / fast 24h). Perplexity restarts from zero every query, forever. This doesn't.
+- **M5 — Compounding evidence graph.** Verified claims persist with per-claim freshness (immutable 5y / slow 6mo / fast 24h), indexed by **BM25 + entity overlap fused with Reciprocal Rank Fusion**, and traversable for multi-hop questions ("what connects A to C?" when they share no vocabulary). Exports to an Obsidian vault so the evidence is browsable, not trapped in a database. Perplexity restarts from zero every query, forever. This doesn't.
+
+  Deliberately **not** full GraphRAG: Microsoft-style community summarization costs $0.10–$0.50/page and hours of indexing, which is absurd for transient web evidence. The graph is built only over *already-verified claims* — a tiny, high-value corpus — and retrieval stays lexical and instant.
 
 ---
 
@@ -191,7 +204,7 @@ npm test    # 162 tests, 0 dependencies
 
 The suite includes **adversarial tests** asserting the guarantees above — a lying judge that invents quotes, four syndicated sources posing as independent corroboration, forged publication dates, a rewritten permalink, SSR render timestamps posing as publish dates, a research loop that must stop early when stuck, and false-positive guards protecting legitimate ESL and technical writing from slop penalties.
 
-Three real bugs were caught by these tests during development: a 2-node citation cycle inflating the independence score (fixed via condensation-graph source detection), a leaked SQLite file handle on Windows, and a test fixture whose "independent" sources were correctly detected as near-duplicates.
+Four real bugs were caught by these tests during development: a 2-node citation cycle inflating the independence score (fixed via condensation-graph source detection), a leaked SQLite file handle on Windows, freshly-added claims appearing instantly stale to recall, and a test fixture whose "independent" sources were correctly detected as near-duplicates.
 
 ### Try it without installing anything
 

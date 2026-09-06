@@ -1,0 +1,6 @@
+# Keep line endings stable across platforms so contributors on Windows and
+# Unix don't generate spurious whole-file diffs.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.svg text eol=lf

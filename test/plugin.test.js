@@ -147,6 +147,15 @@ test('tools are registered when a tools service is present', () => {
   assert.ok(registered.includes('check_source'))
   assert.ok(registered.includes('compare_sources'))
   assert.ok(registered.includes('deep_research'), 'deep_research must be registered')
+  assert.ok(registered.includes('research_recall'), 'research_recall must be registered')
+})
+
+test('research_recall reports an empty graph honestly', async () => {
+  /** @type {any[]} */ const specs = []
+  apply({ tools: { register: (s) => specs.push(s) }, on: () => {} }, { storePath: ':memory:' })
+  const recall = specs.find((s) => s.name === 'research_recall')
+  const out = await recall.execute({ query: 'anything at all' })
+  assert.match(out, /No prior findings/i)
 })
 
 test('hashId is stable and collision-resistant enough for keys', () => {
