@@ -36,7 +36,7 @@ test('the client contains no fabricated-verdict heuristics', () => {
 test('the client does not hardcode phantom-rate or anchoring KPIs', () => {
   assert.ok(!/"0\.0%"/.test(source), 'phantom rate must be measured, not asserted')
   assert.ok(
-    !/veritas-kpi-num" \}, "100%"/.test(source),
+    !/kestrel-kpi-num" \}, "100%"/.test(source),
     'anchoring percentage must be measured, not asserted',
   )
 })

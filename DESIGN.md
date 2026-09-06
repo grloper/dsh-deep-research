@@ -1,6 +1,6 @@
-# VERITAS — Design Document
+# Kestrel — Design Document
 
-**Package:** `dsh-deep-research` · **Engine codename:** VERITAS · **Host:** DeepSeek Harness (Cordis plugin)
+**Package:** `dsh-deep-research` · **Engine codename:** Kestrel · **Host:** DeepSeek Harness (Cordis plugin)
 
 > An adversarial, evidence-first research engine. It does not try to sound right.
 > It tries to be *checkable*.
@@ -10,13 +10,13 @@
 ## 0. Naming decision (locked)
 
 `dsh-research` is **already taken** on npm (`literaf`, v0.4.3 — an academic plugin-market UI, unrelated).
-`dsh-deep-research` and `dsh-veritas` are both unclaimed.
+`dsh-deep-research` and `dsh-kestrel` are both unclaimed.
 
 - **npm package + repo name:** `dsh-deep-research` — wins discovery; people browsing DSH plugin
   directories search "deep research", not invented brand names.
-- **Engine brand inside the product:** **VERITAS** — memorable, gives the project an identity
+- **Engine brand inside the product:** **Kestrel** — memorable, gives the project an identity
   and a logo hook.
-- `dsh-veritas` will be claimed as a defensive alias package.
+- `dsh-kestrel` will be claimed as a defensive alias package.
 
 Reversible before first publish; nothing downstream depends on the string.
 
@@ -34,7 +34,7 @@ That produces four failure modes that are *structural*, not fixable by a better 
 | F3 | **Confirmation-only search.** The agent searches for support, never for refutation. | Query generation is seeded from the hypothesis. Disconfirming evidence is never sought. | GPT-Researcher, dzhng, Firesearch, STORM |
 | F4 | **Slop contamination + paywall blindness.** AI-generated affiliate blogs rank equal to primary sources; hard targets silently dropped. | No credibility model; single-tier fetch that gives up on Cloudflare/JS/PDF. | Perplexity, OpenAI DR (silently retreats to secondary), Jina |
 
-**VERITAS attacks all four mechanically — not with better prompting, but with code that an LLM
+**Kestrel attacks all four mechanically — not with better prompting, but with code that an LLM
 cannot talk its way past.**
 
 ---
@@ -76,7 +76,7 @@ Then, on top: NLI entailment (claim vs. quoted span) → `SUPPORTED / PARTIAL / 
 
 ### M2 — Independent Corroboration Score (kills F2 — the flagship differentiator)
 
-Naive tools count sources. VERITAS computes **how many *independent* origins** exist.
+Naive tools count sources. Kestrel computes **how many *independent* origins** exist.
 
 ```
 docs → 3-word shingles → MinHash(128) → LSH(16 bands × 8 rows) → candidate pairs
@@ -139,7 +139,7 @@ Freshness is per-claim, by volatility class:
 | slow | leadership, standards, docs | 6–18 mo |
 | fast | prices, polls, casualty counts, versions | 1–48 h |
 
-Perplexity restarts from zero on every query, forever. VERITAS gets *better the more you use it*.
+Perplexity restarts from zero on every query, forever. Kestrel gets *better the more you use it*.
 Export to Obsidian (claim notes + backlinks), Mermaid, and a machine-readable evidence bundle.
 
 ---

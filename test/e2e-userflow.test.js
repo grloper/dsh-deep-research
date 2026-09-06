@@ -197,7 +197,7 @@ function findNode(node, predicate, depth = 0) {
 function verifyButton(tree) {
   const btn = findNode(
     tree,
-    (n) => n.type === 'button' && n.props && typeof n.props.onClick === 'function' && /veritas-action-btn/.test(n.props.className || ''),
+    (n) => n.type === 'button' && n.props && typeof n.props.onClick === 'function' && /kestrel-action-btn/.test(n.props.className || ''),
   )
   assert.ok(btn, 'the Verify button must be present in the rendered tree')
   return btn

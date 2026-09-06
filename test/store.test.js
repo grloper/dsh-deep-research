@@ -158,7 +158,7 @@ test('object values are serialized safely', () => {
 })
 
 test('data persists across store instances on disk', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'veritas-store-'))
+  const dir = mkdtempSync(join(tmpdir(), 'kestrel-store-'))
   const path = join(dir, 'evidence.db')
   try {
     const a = new EvidenceStore(path)
@@ -176,7 +176,7 @@ test('data persists across store instances on disk', () => {
 })
 
 test('corrupt store file does not crash construction', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'veritas-corrupt-'))
+  const dir = mkdtempSync(join(tmpdir(), 'kestrel-corrupt-'))
   const path = join(dir, 'broken.json')
   try {
     writeFileSync(path, 'this is not valid json at all', 'utf8')

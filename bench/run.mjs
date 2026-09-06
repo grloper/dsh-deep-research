@@ -1,6 +1,6 @@
 /**
- * @file Head-to-head factual stress-test benchmark for VERITAS.
- * Compares VERITAS against known failure modes of Perplexity Pro, OpenAI Deep Research, and Gemini 2.5 Flash.
+ * @file Head-to-head factual stress-test benchmark for Kestrel.
+ * Compares Kestrel against known failure modes of Perplexity Pro, OpenAI Deep Research, and Gemini 2.5 Flash.
  */
 
 import { analyzeLineage } from '../lib/lineage.js'
@@ -11,7 +11,7 @@ import { assessCredibility } from '../lib/credibility.js'
 
 export async function runBenchmark() {
   const startTime = Date.now()
-  console.log('=== VERITAS (dsh-deep-research) Real-World Benchmark ===\n')
+  console.log('=== Kestrel (dsh-deep-research) Real-World Benchmark ===\n')
 
   const testPrompt = `Analyze the origin and consensus around the claim that 'Acme acquired Beta Industries in 2024 for $1.2B', cross-checking whether any major outlets actually conducted independent investigative reporting or merely syndicated PR Newswire, and check if any subsequent regulatory filings contradicted the transaction terms.`
 

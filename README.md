@@ -1,13 +1,15 @@
 <div align="center">
 
-# VERITAS
+<img src="assets/kestrel-mark.svg" width="88" height="88" alt="" />
 
-### `dsh-deep-research`
+# kestrel
 
-**A research engine that cannot cite something a source never said.**
+**A research engine that can't cite what a source never said.**
+
+<sub>`dsh-deep-research` · a DeepSeek Harness plugin and standalone library</sub>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-218%20passing-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-231%20passing-brightgreen.svg)](#verification)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-blue.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
@@ -29,7 +31,7 @@ Every AI research tool optimizes for **plausible prose with URLs attached**. Tha
 | **F3** | *Confirmation-only search* | Queries are seeded from the hypothesis, so the agent searches for support and never for refutation. |
 | **F4** | *Slop contamination* | AI-generated affiliate blogs rank equal to primary sources, with no credibility model to separate them. |
 
-VERITAS attacks all four **mechanically** — with code a language model cannot talk its way past.
+Kestrel attacks all four **mechanically** — with code a language model cannot talk its way past.
 
 ---
 
@@ -37,7 +39,7 @@ VERITAS attacks all four **mechanically** — with code a language model cannot 
 
 ### 1. A fabricated quote fails `indexOf`
 
-Every citation must carry a **verbatim quote**. Before it is admitted, VERITAS performs a literal substring check against the stored source text, then projects the match back to exact character offsets.
+Every citation must carry a **verbatim quote**. Before it is admitted, Kestrel performs a literal substring check against the stored source text, then projects the match back to exact character offsets.
 
 ```
 quote ∈ document ?  ✓ citation admitted, with [charStart, charEnd]
@@ -52,7 +54,7 @@ The judge is *required* to return a quote, and that quote is then verified by co
 
 MinHash → LSH candidate filtering → lineage DAG → Tarjan SCC condensation → count the roots. Edge direction is fixed by `min(publishedAt, waybackFirstSeen)`, because publishers rewrite their own dates and the archive is the one timestamp they do not control.
 
-Twelve outlets running the same wire copy is **one** witness, and VERITAS reports it as one.
+Twelve outlets running the same wire copy is **one** witness, and Kestrel reports it as one.
 
 ---
 
@@ -253,7 +255,7 @@ Notable regression guards:
 
 ```js
 apply(ctx, {
-  storePath: '~/.dsh/veritas/evidence.db',  // ':memory:' for ephemeral
+  storePath: '~/.dsh/kestrel/evidence.db',  // ':memory:' for ephemeral
   maxSources: 6,                            // sources gathered per claim
   defaultMode: 'standard',                  // quick | standard | deep | forensic
   localLlm: false,                          // opt-in local sidecar fast path
@@ -269,10 +271,24 @@ The local-model fast path is **off by default** and self-disabling: a research t
 
 Stated plainly, because a verification tool that oversells itself is self-refuting:
 
-- **Anchoring proves quotation, not truth.** A source can be quoted perfectly and still be wrong. VERITAS reports *what the evidence says and how independent it is*, not ground truth.
+- **Anchoring proves quotation, not truth.** A source can be quoted perfectly and still be wrong. Kestrel reports *what the evidence says and how independent it is*, not ground truth.
 - **Entailment quality depends on the host LLM.** The mechanical gate makes a fabricated quote impossible; it does not make a bad judgement impossible.
 - **Independence detection is textual.** Two outlets that independently interview the same source produce different text and will count as two origins.
 - **Without a search service the engine degrades to heuristics.** It will tell you so rather than pretend.
+
+---
+
+## The name
+
+A kestrel hunts by hovering — holding station in the air, dead still, until it
+sees exactly what is there. Then it commits, once.
+
+That is the opposite of how research agents usually behave: grab the first ten
+results, summarize confidently, attach URLs. This engine is built to hold
+position over the evidence and only strike when the quote is actually there.
+
+The mark is a kestrel in the hover above a line of source text, with one filled
+point marking the exact character offset a quote was anchored to.
 
 ---
 

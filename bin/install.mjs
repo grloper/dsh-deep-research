@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @file Passive auto-installer for VERITAS (dsh-deep-research).
+ * @file Passive auto-installer for Kestrel (dsh-deep-research).
  * Links the plugin into DSH Web/Dev profiles and registers it inside the
  * Superpowers agent preset so it runs automatically without manual approval prompts.
  */
@@ -15,7 +15,7 @@ const REPO_ROOT = resolve(__dirname, '..')
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 
 export function installToDsh() {
-  console.log('=== Installing VERITAS (dsh-deep-research) into DeepSeek Harness ===')
+  console.log('=== Installing Kestrel (dsh-deep-research) into DeepSeek Harness ===')
   console.log(`Repo: ${REPO_ROOT}`)
   console.log(`DSH Home: ${DSH_HOME}\n`)
 
@@ -73,7 +73,7 @@ export function installToDsh() {
     try {
       let content = readFileSync(superpowersAgentYml, 'utf8')
       if (!content.includes('dsh-deep-research')) {
-        const row = `\n# ── VERITAS Deep Research & Fact Verification ─────────────────────────────\n- id: veritas-research\n  name: dsh-deep-research\n`
+        const row = `\n# ── Kestrel Deep Research & Fact Verification ─────────────────────────────\n- id: kestrel-research\n  name: dsh-deep-research\n`
         content += row
         writeFileSync(superpowersAgentYml, content, 'utf8')
         console.log(`✔ Wired into Superpowers preset: ${superpowersAgentYml}`)
@@ -87,7 +87,7 @@ export function installToDsh() {
   }
 
   console.log(`\nInstallation complete. (${installedCount} configurations updated)`)
-  console.log(`VERITAS is now automatically and passively active on profile boot.`)
+  console.log(`Kestrel is now automatically and passively active on profile boot.`)
 }
 
 if (process.argv[1]?.endsWith('install.mjs')) {

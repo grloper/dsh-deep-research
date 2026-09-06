@@ -1,5 +1,5 @@
 /**
- * @file Unit tests for VERITAS client-side Cordis plugin (lib/client.js).
+ * @file Unit tests for Kestrel client-side Cordis plugin (lib/client.js).
  */
 
 import { test } from 'node:test'
@@ -93,14 +93,14 @@ test('lib/client.js registers with __ModuleLoader__ and exports valid Cordis plu
   // Check specific registrations
   const assistantAction = registeredSlots.find((r) => r.options.name === 'conversation.chat.assistant-actions')
   assert.ok(assistantAction, 'registered assistant-actions')
-  assert.equal(assistantAction.options.id, 'veritas-verify-action')
+  assert.equal(assistantAction.options.id, 'kestrel-verify-action')
 
   const composerToggle = registeredSlots.find((r) => r.options.name === 'conversation.input.left')
   assert.ok(composerToggle, 'registered composer button')
-  assert.equal(composerToggle.options.id, 'veritas-composer-toggle')
+  assert.equal(composerToggle.options.id, 'kestrel-composer-toggle')
 
   const settingsSection = registeredSlots.find((r) => r.options.name === 'settings.section')
   assert.ok(settingsSection, 'registered settings section')
-  assert.equal(settingsSection.options.id, 'veritas-settings')
-  assert.ok(settingsSection.options.label().includes('Veritas'))
+  assert.equal(settingsSection.options.id, 'kestrel-settings')
+  assert.ok(settingsSection.options.label().includes('Kestrel'))
 })

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @file VERITAS end-to-end demo — fully offline, deterministic, zero network.
+ * @file Kestrel end-to-end demo — fully offline, deterministic, zero network.
  * @license MIT
  *
  * This is the honest demo. It does not call an API, does not need a key, and

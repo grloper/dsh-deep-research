@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @file VERITAS standalone CLI — usable outside DeepSeek Harness and in CI.
+ * @file Kestrel standalone CLI — usable outside DeepSeek Harness and in CI.
  * @license MIT
  *
  * Deliberately dependency-free and offline-capable: the independence and
@@ -17,7 +17,7 @@ import { assessCoverage, heuristicDecompose, MODES } from '../lib/research.js'
 import { installToDsh } from './install.mjs'
 
 const USAGE = `
-VERITAS — evidence-first research tooling (dsh-deep-research)
+Kestrel — evidence-first research tooling (dsh-deep-research)
 
 Usage:
   dsh-deep-research install               Auto-install and link plugin into DSH profile & preset
@@ -219,7 +219,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stderr.write(`veritas: ${err?.stack ?? err}\n`)
+  process.stderr.write(`kestrel: ${err?.stack ?? err}\n`)
   process.exitCode = 1
 })
 

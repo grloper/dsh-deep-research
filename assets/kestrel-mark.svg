@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Kestrel">
+  <title>Kestrel</title>
+  <!--
+    A kestrel in the hover, seen head-on, holding station above a source line.
+
+    Solid silhouette so it survives favicon size and cannot be mistaken for a
+    generic swoosh: the shoulder notch and the forked tail are what make it read
+    as a bird. The tail is kept short and wide so the whole shape stays a bird
+    rather than collapsing into a downward arrow.
+
+    Below, the rule is the source text and the filled dot is the single exact
+    offset a quote was located at. The gap in the rule is the anchored span.
+  -->
+  <g fill="currentColor">
+    <!-- head and body -->
+    <path d="M32 11
+             C 29.2 11, 27.2 13.4, 27 16.6
+             L 27 20.5
+             L 29.6 36
+             L 34.4 36
+             L 37 20.5
+             L 37 16.6
+             C 36.8 13.4, 34.8 11, 32 11 Z" />
+    <!-- left wing, swept back from a clear shoulder notch -->
+    <path d="M27.4 19.8
+             C 21 17.2, 12.4 17.8, 4.5 22.6
+             C 12.8 23.6, 19.4 26.8, 25.8 32.2
+             L 28.2 27.4 Z" />
+    <!-- right wing, mirrored -->
+    <path d="M36.6 19.8
+             C 43 17.2, 51.6 17.8, 59.5 22.6
+             C 51.2 23.6, 44.6 26.8, 38.2 32.2
+             L 35.8 27.4 Z" />
+    <!-- short forked tail: wide and stubby, so the mark stays avian -->
+    <path d="M29 37.5 L 26.6 45.2 L 32 42.6 L 37.4 45.2 L 35 37.5 Z" />
+  </g>
+  <!-- the source line, broken at the anchored span -->
+  <path d="M5 56 H 27 M 37 56 H 59" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity="0.4" fill="none" />
+  <!-- the fix: one exact offset -->
+  <circle cx="32" cy="56" r="3.4" fill="currentColor" />
+</svg>

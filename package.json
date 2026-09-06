@@ -1,7 +1,7 @@
 {
   "name": "dsh-deep-research",
   "version": "0.2.0",
-  "description": "VERITAS — adversarial deep-research engine for DeepSeek Harness. Mechanically-verified citations, independent-corroboration scoring that exposes syndication laundering, prosecutor/defender claim tribunal, and a compounding evidence graph.",
+  "description": "Kestrel — adversarial deep-research engine for DeepSeek Harness. Mechanically-verified citations, independent-corroboration scoring that exposes syndication laundering, prosecutor/defender claim tribunal, and a compounding evidence graph.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -23,7 +23,7 @@
     }
   },
   "bin": {
-    "dsh-deep-research": "bin/veritas.mjs"
+    "dsh-deep-research": "bin/kestrel.mjs"
   },
   "files": [
     "lib",
@@ -54,9 +54,9 @@
     "rag",
     "knowledge-graph",
     "osint",
-    "veritas"
+    "kestrel"
   ],
-  "author": "VERITAS contributors",
+  "author": "Kestrel contributors",
   "license": "MIT",
   "repository": {
     "type": "git",
