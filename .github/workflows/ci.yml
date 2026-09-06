@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test · Node ${{ matrix.node }} · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 20 exercises the JSON fallback store; 22 and 24 exercise node:sqlite.
+        node: ['20', '22', '24']
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The package has zero runtime dependencies, so there is nothing to install.
+      - name: Verify the dependency-free claim
+        shell: bash
+        run: |
+          if [ -f package-lock.json ] || [ -d node_modules ]; then
+            echo "Unexpected dependency artifacts present" && exit 1
+          fi
+          node -e "const p=require('./package.json');if(p.dependencies&&Object.keys(p.dependencies).length){console.error('runtime dependencies found');process.exit(1)}"
+
+      - name: Test
+        run: npm test
+
+      - name: Demo (end-to-end, offline)
+        run: npm run demo
+
+      - name: Benchmark
+        run: npm run bench

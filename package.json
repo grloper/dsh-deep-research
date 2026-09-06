@@ -1,6 +1,6 @@
 {
   "name": "dsh-deep-research",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "VERITAS — adversarial deep-research engine for DeepSeek Harness. Mechanically-verified citations, independent-corroboration scoring that exposes syndication laundering, prosecutor/defender claim tribunal, and a compounding evidence graph.",
   "type": "module",
   "main": "lib/index.js",
@@ -28,16 +28,17 @@
   "files": [
     "lib",
     "bin",
-    "data",
-    "skills",
+    "demo",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "check": "node --test \"test/**/*.test.js\"",
     "test": "node --test \"test/**/*.test.js\"",
-    "bench": "node bench/run.mjs",
+    "test:serial": "node --test --test-concurrency=1 --experimental-test-isolation=none \"test/**/*.test.js\"",
+    "check": "node --test \"test/**/*.test.js\"",
+    "demo": "node demo/run.mjs",
+    "bench": "node test/benchmark.mjs",
     "install:dsh": "node bin/install.mjs"
   },
   "keywords": [
@@ -54,7 +55,7 @@
     "osint",
     "veritas"
   ],
-  "author": "grloper (https://github.com/grloper)",
+  "author": "VERITAS contributors",
   "license": "MIT",
   "repository": {
     "type": "git",

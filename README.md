@@ -4,12 +4,15 @@
 
 ### `dsh-deep-research`
 
-**A research engine that can't cite something a source never said.**
+**A research engine that cannot cite something a source never said.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-191%20passing-brightgreen.svg)](#verification)
-[![Zero dependencies](https://img.shields.io/badge/dependencies-0-blue.svg)](package.json)
+[![Tests](https://img.shields.io/badge/tests-218%20passing-brightgreen.svg)](#verification)
+[![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-blue.svg)](package.json)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
+
+**[Quick start](#quick-start) · [Run the demo](#see-it-work-60-seconds) · [How it works](#the-five-mechanisms) · [Tools](#the-five-tools) · [Architecture](#architecture)**
 
 </div>
 
@@ -17,14 +20,14 @@
 
 ## The problem
 
-Every AI research tool — Perplexity, GPT-Researcher, and the rest — optimizes for **plausible prose with URLs attached.** That produces four failures that no amount of prompt engineering fixes:
+Every AI research tool optimizes for **plausible prose with URLs attached**. That produces four failures no amount of prompt engineering fixes:
 
 | | Failure | Reality |
 |---|---|---|
-| **F1** | *Citation ≠ support* | Independent tests find 20–35% of Perplexity's cited URLs don't actually state the sentence they're attached to. |
-| **F2** | *Fake corroboration* | "12 sources agree" is usually **one press release and eleven syndications.** No consumer tool checks this. |
-| **F3** | *Confirmation-only search* | Agents search for support. They never search for refutation. |
-| **F4** | *Slop + paywall blindness* | AI-generated affiliate blogs rank equal to primary sources; hard targets get silently dropped. |
+| **F1** | *Citation ≠ support* | The cited page frequently does not state the sentence attached to it. Nobody checks entailment; a URL near a claim is treated as proof. |
+| **F2** | *Fake corroboration* | "12 sources agree" is usually **one press release and eleven syndications**. Source *count* is used as a truth proxy; independence is never computed. |
+| **F3** | *Confirmation-only search* | Queries are seeded from the hypothesis, so the agent searches for support and never for refutation. |
+| **F4** | *Slop contamination* | AI-generated affiliate blogs rank equal to primary sources, with no credibility model to separate them. |
 
 VERITAS attacks all four **mechanically** — with code a language model cannot talk its way past.
 
@@ -34,197 +37,245 @@ VERITAS attacks all four **mechanically** — with code a language model cannot 
 
 ### 1. A fabricated quote fails `indexOf`
 
-Every claim must carry a **verbatim quote** plus `{docId, charStart, charEnd, sha256}`. Before a citation is admitted, VERITAS performs a literal substring check against the stored, hashed source text.
+Every citation must carry a **verbatim quote**. Before it is admitted, VERITAS performs a literal substring check against the stored source text, then projects the match back to exact character offsets.
 
 ```
-quote ∈ document ?  ✅ citation admitted
-                 ✗  ❌ REJECTED → claim demoted to UNVERIFIED
+quote ∈ document ?  ✓ citation admitted, with [charStart, charEnd]
+                 ✗  ✗ REJECTED → claim demoted to UNVERIFIED
 ```
 
 No model is asked whether the citation is good. Asking the thing that hallucinates to check its own hallucination is circular. **`String.indexOf` is not.**
 
-> **Phantom-citation rate: 0% by construction.** Not by benchmark. By construction.
+The judge is *required* to return a quote, and that quote is then verified by code. A dishonest model cannot manufacture support — it can only fail the gate.
 
 ### 2. Corroboration is counted in *origins*, not documents
 
-```
-$ compare_sources [14 urls about the same story]
+MinHash → LSH candidate filtering → lineage DAG → Tarjan SCC condensation → count the roots. Edge direction is fixed by `min(publishedAt, waybackFirstSeen)`, because publishers rewrite their own dates and the archive is the one timestamp they do not control.
 
-⚠  14 sources → 1 independent origin (13 derivative/syndicated)
-   Root: acme-corp.com/press/2024-11-03  ·  2024-11-03 08:00Z
-   1 circular-citation loop detected (outlet-b ↔ outlet-f)
-
-   Independent Corroboration Score: 1/14
-```
-
-MinHash → LSH → lineage DAG → SCC condensation → count the sources of the DAG. Direction is fixed by `min(publishDate, waybackFirstSeen)` — because publishers rewrite their own dates, and the archive is the one timestamp they don't control.
-
-**No other open-source research tool does this.**
+Twelve outlets running the same wire copy is **one** witness, and VERITAS reports it as one.
 
 ---
 
-## Install
+## See it work (60 seconds)
+
+No API key. No network. No configuration.
 
 ```bash
-dsh plugin --profile web add dsh-deep-research
+git clone https://github.com/grloper/dsh-deep-research.git
+cd dsh-deep-research
+npm run demo
 ```
 
-Zero runtime dependencies. No API keys required beyond the LLM your harness already uses. Node 20+ (uses built-in `node:sqlite` on 22+, transparently falls back to JSON storage below that).
+The demo runs the **real pipeline** over a fixed corpus: one press release, six verbatim syndications, four derivative rewrites, one independent regulatory filing, and one correction that retracts the headline number.
+
+### Actual output
+
+**1 · A fabricated quote cannot pass**
+
+```
+ADMITTED  (genuine) "its Q3 revenue reached 42 million dollars"
+          kind=EXACT span=[40,81] · Quote appears verbatim in the source document.
+
+REJECTED  (fabricated) "its Q3 revenue reached 91 million dollars"
+          kind=FAILED span=[-1,-1] · Quote does not appear in the source document
+          (best token overlap 0.75 < 0.85). The citation is fabricated.
+```
+
+The fabrication differs from the truth by **one digit** — `42` → `91`. Token overlap is 0.75, high enough to fool any similarity threshold a naive tool would pick. The exact-match gate rejects it anyway.
+
+**2 · Thirteen "sources" are three witnesses**
+
+```
+Raw source count      : 13
+Independent origins   : 3
+Derivation edges      : 55
+
+13 sources → 3 independent origins (10 derivative/syndicated)
+```
+
+Every source-counting tool reports "13 sources agree." Three actually do.
+
+**3 · A contradiction is surfaced, not buried**
+
+```
+2 check-worthy claims · 1 supported · 2 fabricated citation(s) blocked (8%)
+
+SUPPORTED      89% confidence  ICS 2 / 12 sources
+  Northwind Robotics reported Q3 revenue of 42 million dollars.
+  └ [EXACT] "Northwind Robotics announced today that its Q3 revenue reached 42 millio…"
+
+PARTIAL        40% confidence  ICS 1 / 11 sources
+  Northwind Robotics grew 18 percent year over year.
+```
+
+Eleven sources "support" the 18% growth claim. One primary filing retracts it. Confidence is **capped at 40% by the contradiction** rather than inflated by the crowd — the opposite of what majority-vote retrieval does.
+
+**4 · The second run does not start from zero**
+
+```
+Evidence store backend : sqlite
+Claims retained        : 2 across 3 entities
+
+Recall "Northwind revenue" → 2 prior finding(s):
+  · SUPPORTED (89%) fresh — Northwind Robotics reported Q3 revenue of 42 mil…
+  · PARTIAL  (40%) fresh — Northwind Robotics grew 18 percent year over year.
+```
 
 ---
 
-## Tools
+## Quick start
 
-### `verify_text` — the one to try first
+### Install into DeepSeek Harness
 
-Paste **any** AI output, article, or your own draft. Get every factual claim graded, with receipts.
-
-```
-✅ SUPPORTED — 91% confidence
-> The trial enrolled 4,200 participants across 12 sites.
-Corroboration: 3 independent origins across 5 sources
-- [EXACT] journals.example/study-2024 (credibility 84/100)
-  > "a randomized trial of 4,200 participants at twelve centres"
-
-❌ CONTRADICTED — 12% confidence
-> The treatment eliminated all hospitalizations.
-- [EXACT] replication.example/followup (credibility 79/100)
-  > "found no statistically significant reduction"
-
-⚠️ UNVERIFIED — 5% confidence
-> Adoption grew 400% year over year.
-- Rejected citation from blog.example: Quote does not appear in the
-  source document (best token overlap 0.31 < 0.85). The citation is
-  fabricated or points at the wrong document.
+```bash
+npm install dsh-deep-research
+npm run install:dsh      # links the plugin into your DSH web/dev profiles
 ```
 
-### `check_source` — audit one URL
+Then ask your agent naturally:
 
-Source type (primary / peer-reviewed / news / blog), transparent credibility signals **with reasons**, content-quality signals, and forged-date detection.
+> *"Deep research: did the EU AI Act's foundation-model rules change after the 2024 trilogue?"*
+> *"Verify this article before I cite it."*
+> *"Are these six URLs actually independent sources?"*
 
-### `compare_sources` — the independence check
+### Use it as a library
 
-Give it N URLs on the same story. Get the Independent Corroboration Score, the true origin, and any circular-citation loops.
-
-### `deep_research` — the full investigation
-
-Decomposes the question into falsifiable sub-questions, runs the Tribunal on each, and **iterates with gap-targeted follow-up queries** until findings converge.
-
-```
-5 sub-question(s) · 3 resolved · 1 contested · 1 unresolved · 3 round(s) · stopped: resolved
-```
-
-The loop is driven by a coverage ledger, not a countdown. Each round it diagnoses *why* a sub-question is still open and asks a different question accordingly:
-
-| Diagnosis | Follow-up strategy |
-|---|---|
-| No evidence found | broaden |
-| Only 1 independent origin | `…primary source OR original study OR official filing` |
-| Sources disagree | `…systematic review OR meta-analysis OR consensus` |
-| Refutation is thin | `…correction OR retraction OR rebuttal` |
-| Confidence below bar | `…data OR statistics OR report` |
-
-Stops on `resolved`, `no-progress` (a whole round added no new independent evidence), or `budget` — and **always tells you which**.
-
-Modes: `quick` (1 round) · `standard` (3) · `deep` (6) · `forensic` (12, requires 3 independent origins).
-
-### `research_recall` — what do we already know?
-
-Queries the accumulated evidence graph before you spend a single search.
-
-```
-↺ q2: reusing a prior verification (SUPPORTED, 94%) from the evidence graph.
-Recall: 2/5 sub-question(s) had reusable prior findings.
-```
-
-Stale findings are **excluded automatically** by volatility horizon — a cached stock price is never reused, a cached mathematical constant is. This is the compounding part: every investigation makes the next one cheaper.
-
----
-
-## How it works
-
-```
-INTAKE ──> RECALL ──> ACQUIRE ──> ADJUDICATE ──> GROUND ──> TRIBUNAL ──> GAP ──> SYNTHESIZE
-   │          │           │            │             │           │          │         │
- falsifiers  reuse     multi-query   credibility   quote      prosecutor  coverage  claims
- defined     fresh     + COUNTER     + slop gate   anchor     vs          matrix    only
- up front    claims    -claim search + lineage     (M1)       defender    → re-loop
-                                       DAG (M2)               (M3)
-```
-
-**Five mechanisms:**
-
-- **M1 — Mechanical anchoring.** Quotes verified by string match, not model opinion.
-- **M2 — Independent Corroboration Score.** Syndication, derivation, quote-propagation and circular citation collapse to true origins.
-- **M3 — The Tribunal.** A **Prosecutor** actively hunts disconfirming evidence (`"X debunked"`, `"X failed to replicate"`) while a **Defender** builds the strongest case. A rule-based **Adjudicator** — deliberately not another LLM call — weighs both sides by independent origins and credibility, and **records dissent instead of smoothing it away**. Refutation search is a *required stage*, so confirmation bias is structurally impossible.
-
-  Two rules that matter: a claim backed by **one origin is never "settled"** no matter how many outlets republished it, and **credible dissent blocks a SUPPORTED verdict** outright.
-- **M4 — Tiered acquisition.** plain fetch → Jina Reader → crawl4ai/scrapling → camoufox/patchright → OCR. Every tier failure is **surfaced, never silently swallowed.**
-- **M5 — Compounding evidence graph.** Verified claims persist with per-claim freshness (immutable 5y / slow 6mo / fast 24h), indexed by **BM25 + entity overlap fused with Reciprocal Rank Fusion**, and traversable for multi-hop questions ("what connects A to C?" when they share no vocabulary). Exports to an Obsidian vault so the evidence is browsable, not trapped in a database. Perplexity restarts from zero every query, forever. This doesn't.
-
-  Deliberately **not** full GraphRAG: Microsoft-style community summarization costs $0.10–$0.50/page and hours of indexing, which is absurd for transient web evidence. The graph is built only over *already-verified claims* — a tiny, high-value corpus — and retrieval stays lexical and instant.
-
----
-
-## Calibrated confidence, not vibes
-
-Confidence is **not** the model's self-reported certainty — research shows that's badly miscalibrated and clusters at "very sure." It's computed from signals that actually track correctness:
+Every mechanism is an exported, dependency-free module:
 
 ```js
-verdict base
-  + independent origins (log-scaled, diminishing returns)
-  + source credibility  (±0.1)
-  × contradiction cap   (hard ceiling of 0.4 if anything contradicts)
-```
+import { anchorQuote, analyzeLineage, verifyText } from 'dsh-deep-research'
 
-Four syndicated copies of one press release will **never** score like four independent confirmations.
+// Mechanical citation gate
+const anchor = anchorQuote('revenue reached 42 million dollars', sourceText)
+if (!anchor.ok) throw new Error(anchor.reason)
+console.log(anchor.charStart, anchor.charEnd)   // exact, replayable offsets
+
+// Independence analysis
+const { ics, total, roots, circular } = analyzeLineage(documents)
+console.log(`${total} sources → ${ics} independent origins`)
+```
 
 ---
 
-## Honest limitations
+## The five tools
 
-This project is about not overstating things, so:
+Registered automatically with the host agent.
 
-- **It reduces and exposes error. It is not an oracle.** A claim marked SUPPORTED means *evidence was located and mechanically verified*, not that it is true.
-- **Credibility scoring can be wrong.** Every score decomposes into named signals with reasons, nothing is ever hard-blocked, and primary sources are exempt from stylistic heuristics — because technical and legal prose trips every naive AI-text detector there is.
-- **Slop heuristics carry false-positive risk.** Non-native-English and technical writing use formulaic transitions legitimately. They're weighted near-zero on purpose.
-- **Only permissively-licensed reputation data ships.** Iffy Index (CC BY 4.0), Tranco, DOAJ, Crossref. NewsGuard, MBFC and Ad Fontes are proprietary and are **never** bundled or scraped.
-- **robots.txt is respected by default.** Aggressive acquisition tiers are opt-in.
-- Heuristics are tuned for English. Other languages degrade.
+| Tool | What it does |
+|---|---|
+| **`verify_text`** | Fact-checks any block of text claim by claim. Extracts atomic claims, searches for supporting *and* refuting evidence, and admits a citation only when its quote is mechanically located in the fetched source. |
+| **`deep_research`** | Full adversarial investigation. Decomposes the question, runs a prosecutor hunting disconfirming evidence alongside a defender, and iterates with gap-targeted follow-ups until findings converge. Modes: `quick`, `standard`, `deep`, `forensic`. |
+| **`compare_sources`** | Given several URLs on one story, determines how many are genuinely independent. Detects verbatim syndication, derivative rewrites, quote propagation, and circular citation. |
+| **`check_source`** | Assesses a single URL: source type, credibility signals with reasons, content-quality signals, and publication-date reliability including rewritten-date detection. |
+| **`research_recall`** | Queries the accumulated evidence graph, excluding findings that have gone stale under their volatility horizon. Use it *before* researching to avoid repeating work. |
+
+---
+
+## The five mechanisms
+
+### M1 · Mechanical citation anchoring
+
+Three tiers, strictest first: **EXACT** (byte-identical), **NORMALIZED** (identical after whitespace/punctuation folding, projected back to original offsets), and **FUZZY** (token-Jaccard ≥ 0.85, reported distinctly so callers can be strict). A quote shorter than 24 characters is refused outright, because short strings match by coincidence.
+
+Documents are SHA-256 hashed at fetch time. If stored text no longer matches its hash, every citation resting on it is rejected as an integrity failure.
+
+### M2 · Independent Corroboration Score
+
+3-gram shingles → 128-permutation MinHash → LSH banding → pairwise Jaccard. Above `0.85` a document is a **syndication**; above `0.40` with a shared quote of 50+ characters it is a **derivation**. Tarjan's algorithm condenses cycles, and the DAG roots are counted as the true origins. Circular citation loops are reported explicitly.
+
+### M3 · Adversarial tribunal
+
+For every claim, a **prosecutor** generates refutation-seeking queries (`"<claim>" debunked OR false OR retracted`) while a **defender** seeks support. Both sides' evidence passes the same mechanical gate. A claim only reaches `SUPPORTED` when the defense survives the prosecution — and an active contradiction hard-caps confidence regardless of how many sources agree.
+
+### M4 · Date resolution
+
+JSON-LD, Open Graph, meta tags, HTTP headers, and URL path segments are cross-checked. Disagreement between a page's self-reported date and its archival first-sighting is surfaced as a warning, defeating retro-dated edits.
+
+### M5 · Compounding evidence graph
+
+Verified claims persist in a local store (`node:sqlite` when available, transparent JSON fallback otherwise) with BM25 + entity-index + RRF hybrid retrieval. Freshness is **per-claim by volatility class** — a mathematical constant and a stock price must not expire on the same schedule.
+
+| Class | Horizon | Example |
+|---|---|---|
+| `IMMUTABLE` | 5 years | founding dates, theorems, DOIs |
+| `SLOW` | ~6 months | company structure, policy |
+| `FAST` | 24 hours | prices, polls, "current CEO" |
+
+---
+
+## Architecture
+
+```
+lib/
+├── index.js        Host plugin: tool registration, service adapters, Client↔Host RPC
+├── client.js       Browser half: Verify action, composer toggle, settings dashboard
+├── anchor.js       M1 · mechanical citation anchoring + admission gate
+├── lineage.js      M2 · MinHash/LSH/SCC independence analysis
+├── tribunal.js     M3 · prosecutor/defender adjudication
+├── dates.js        M4 · multi-signal publication-date resolution
+├── store.js        M5 · evidence store, volatility classes, freshness
+├── graph.js        M5 · BM25 + entity + RRF hybrid recall
+├── credibility.js  source typing, credibility and slop signals
+├── verify.js       verify_text pipeline
+└── research.js     deep_research loop, coverage assessment, gap queries
+```
+
+**Design constraints, deliberately chosen:**
+
+- **Zero runtime dependencies.** Nothing to audit, nothing to break, no supply chain.
+- **Every capability is injected.** Search, fetch, and LLM arrive through adapters, so the whole engine is testable offline and degrades to heuristics rather than crashing when a host service is missing.
+- **The browser never adjudicates.** A page cannot fetch and anchor sources, so it never renders a verdict it did not receive from the host engine. When the host is unreachable the UI says so instead of guessing.
 
 ---
 
 ## Verification
 
-A tool about verifiable claims should not ship unverifiable claims.
-
 ```bash
-npm test    # 162 tests, 0 dependencies
+npm test        # 218 tests
+npm run demo    # end-to-end proof, offline
+npm run bench   # throughput and scaling benchmark
 ```
 
-The suite includes **adversarial tests** asserting the guarantees above — a lying judge that invents quotes, four syndicated sources posing as independent corroboration, forged publication dates, a rewritten permalink, SSR render timestamps posing as publish dates, a research loop that must stop early when stuck, and false-positive guards protecting legitimate ESL and technical writing from slop penalties.
+The suite covers the anchoring tiers, lineage/SCC condensation, tribunal adjudication, date resolution, credibility scoring, store/freshness behaviour, graph recall, RPC contracts, and the plugin's degradation under missing, partial, and hostile host services.
 
-Four real bugs were caught by these tests during development: a 2-node citation cycle inflating the independence score (fixed via condensation-graph source detection), a leaked SQLite file handle on Windows, freshly-added claims appearing instantly stale to recall, and a test fixture whose "independent" sources were correctly detected as near-duplicates.
+Notable regression guards:
 
-### Try it without installing anything
+- A **fabricated quote is rejected even when the judge asserts `SUPPORTED`.**
+- A **`NEUTRAL` source never becomes a citation** — a source that does not address the claim is not evidence for it.
+- **200,000 distinct URLs produce zero id collisions**, protecting a store designed to accumulate for years.
+- **Fuzzy anchoring stays linear**; the incremental sliding window replaced an O(document × quote) scan and cut a 40k-token match from ~290 ms to ~45 ms.
 
-```bash
-npx dsh-deep-research compare <url1> <url2> <url3>   # independence analysis, no LLM
-npx dsh-deep-research source <url>                   # credibility + date integrity
-npx dsh-deep-research plan "<question>"              # see the decomposition
-npx dsh-deep-research modes                          # depth presets
-```
-
-Benchmark harness (SimpleQA / FRAMES / LongFact / ALCE citation precision) is in progress; **numbers will be published here rather than claimed.**
+> If a test run needs to avoid per-file process spawning (restricted sandboxes, some CI images), use `npm run test:serial`.
 
 ---
 
-## Design
+## Configuration
 
-Full architecture, competitive analysis and five adversarial self-critique passes: **[DESIGN.md](DESIGN.md)**
+```js
+apply(ctx, {
+  storePath: '~/.dsh/veritas/evidence.db',  // ':memory:' for ephemeral
+  maxSources: 6,                            // sources gathered per claim
+  defaultMode: 'standard',                  // quick | standard | deep | forensic
+  localLlm: false,                          // opt-in local sidecar fast path
+  localLlmModel: 'qwen2.5-coder',
+})
+```
+
+The local-model fast path is **off by default** and self-disabling: a research tool should not send prompt text to a local port nobody configured, and one failed probe latches it off for the process rather than paying a timeout on every call.
+
+---
+
+## Limitations
+
+Stated plainly, because a verification tool that oversells itself is self-refuting:
+
+- **Anchoring proves quotation, not truth.** A source can be quoted perfectly and still be wrong. VERITAS reports *what the evidence says and how independent it is*, not ground truth.
+- **Entailment quality depends on the host LLM.** The mechanical gate makes a fabricated quote impossible; it does not make a bad judgement impossible.
+- **Independence detection is textual.** Two outlets that independently interview the same source produce different text and will count as two origins.
+- **Without a search service the engine degrades to heuristics.** It will tell you so rather than pretend.
 
 ---
 
 ## License
 
-MIT © [grloper](https://github.com/grloper)
+MIT
