@@ -13,3 +13,4 @@ dist/
 *.db-wal
 .veritas/
 bench/results/
+.obsidian_vault/

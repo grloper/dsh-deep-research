@@ -14,11 +14,13 @@ import { resolveDate } from '../lib/dates.js'
 import { makeFetch, stripHtml } from '../lib/index.js'
 import { heuristicAtomize, renderReport, verifyText } from '../lib/verify.js'
 import { assessCoverage, heuristicDecompose, MODES } from '../lib/research.js'
+import { installToDsh } from './install.mjs'
 
 const USAGE = `
 VERITAS — evidence-first research tooling (dsh-deep-research)
 
 Usage:
+  dsh-deep-research install               Auto-install and link plugin into DSH profile & preset
   dsh-deep-research compare <url...>      Independence / copy-lineage analysis (no LLM needed)
   dsh-deep-research source <url>          Credibility + date-integrity report   (no LLM needed)
   dsh-deep-research claims <file|->       Extract check-worthy atomic claims     (no LLM needed)
@@ -183,6 +185,9 @@ function cmdModes() {
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2)
   switch (cmd) {
+    case 'install':
+      installToDsh()
+      break
     case 'compare':
       await cmdCompare(rest)
       break

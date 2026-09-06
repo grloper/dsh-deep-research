@@ -37,7 +37,8 @@
   "scripts": {
     "check": "node --test \"test/**/*.test.js\"",
     "test": "node --test \"test/**/*.test.js\"",
-    "bench": "node bench/run.mjs"
+    "bench": "node bench/run.mjs",
+    "install:dsh": "node bin/install.mjs"
   },
   "keywords": [
     "deepseek-harness",
