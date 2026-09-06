@@ -34,9 +34,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
-    "test:serial": "node --test --test-concurrency=1 --experimental-test-isolation=none \"test/**/*.test.js\"",
-    "check": "node --test \"test/**/*.test.js\"",
+    "test": "node --test test/",
+    "test:serial": "node --test --test-concurrency=1 --experimental-test-isolation=none test/",
+    "check": "node --test test/",
     "demo": "node demo/run.mjs",
     "bench": "node test/benchmark.mjs",
     "install:dsh": "node bin/install.mjs"
