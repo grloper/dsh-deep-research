@@ -1,16 +1,13 @@
 <div align="center">
 
-<img src="assets/kestrel-mark.svg" width="88" height="88" alt="" />
+<img src="assets/social-card.png" alt="kestrel — a research engine that can't cite what a source never said" width="820" />
 
 # kestrel
 
-**A research engine that can't cite what a source never said.**
-
-<sub>`dsh-deep-research` · a DeepSeek Harness plugin and standalone library</sub>
+<sub>`dsh-deep-research` · a DeepSeek Harness plugin and standalone library · zero runtime dependencies</sub>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-231%20passing-brightgreen.svg)](#verification)
-[![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-blue.svg)](package.json)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
 
