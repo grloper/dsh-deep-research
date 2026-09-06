@@ -13,6 +13,7 @@ import { assessCredibility } from '../lib/credibility.js'
 import { resolveDate } from '../lib/dates.js'
 import { makeFetch, stripHtml } from '../lib/index.js'
 import { heuristicAtomize, renderReport, verifyText } from '../lib/verify.js'
+import { assessCoverage, heuristicDecompose, MODES } from '../lib/research.js'
 
 const USAGE = `
 VERITAS — evidence-first research tooling (dsh-deep-research)
@@ -21,11 +22,16 @@ Usage:
   dsh-deep-research compare <url...>      Independence / copy-lineage analysis (no LLM needed)
   dsh-deep-research source <url>          Credibility + date-integrity report   (no LLM needed)
   dsh-deep-research claims <file|->       Extract check-worthy atomic claims     (no LLM needed)
+  dsh-deep-research plan <question>       Show the sub-question decomposition    (no LLM needed)
   dsh-deep-research verify <file|->       Verify claims in a text file
+  dsh-deep-research modes                 List research depth presets
 
 Notes:
   'compare' is the flagship: give it several URLs covering the same story and it
   reports how many are genuinely independent rather than syndicated copies.
+
+  Full adversarial research (deep_research) runs inside DeepSeek Harness, where a
+  search provider and model are available. The commands above work standalone.
 `
 
 const fetchDoc = makeFetch({})
@@ -142,11 +148,49 @@ async function cmdVerify(file) {
   }
 }
 
+/** @param {string[]} words */
+function cmdPlan(words) {
+  const q = words.join(' ').trim()
+  if (!q) {
+    process.stderr.write('plan needs a question.\n')
+    process.exitCode = 1
+    return
+  }
+  const subs = heuristicDecompose(q, 12)
+  console.log(`\nQuestion: ${q}\n`)
+  console.log('Sub-questions to be investigated:')
+  subs.forEach((s, i) => console.log(`  ${i + 1}. ${s}`))
+
+  const pending = subs.map((t, i) => ({ id: `q${i + 1}`, text: t, status: 'open', verdict: null, attempts: 0 }))
+  const { gaps } = assessCoverage(pending, MODES.standard)
+  console.log('\nInitial coverage: 0% — every sub-question starts as an open gap:')
+  for (const g of gaps) console.log(`  [${g.strategy}] ${g.text}`)
+  console.log()
+}
+
+function cmdModes() {
+  console.log('\nResearch depth presets:\n')
+  for (const [name, m] of Object.entries(MODES)) {
+    console.log(
+      `  ${name.padEnd(10)} rounds=${String(m.rounds).padEnd(3)} ` +
+        `subQs=${String(m.maxSubQuestions).padEnd(3)} ` +
+        `minIndependentOrigins=${m.minIcs} minConfidence=${m.minConfidence}`,
+    )
+  }
+  console.log()
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2)
   switch (cmd) {
     case 'compare':
       await cmdCompare(rest)
+      break
+    case 'plan':
+      cmdPlan(rest)
+      break
+    case 'modes':
+      cmdModes()
       break
     case 'source':
       await cmdSource(rest[0])

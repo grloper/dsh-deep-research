@@ -7,7 +7,7 @@
 **A research engine that can't cite something a source never said.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-120%20passing-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen.svg)](#verification)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-blue.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
 
@@ -106,6 +106,28 @@ Source type (primary / peer-reviewed / news / blog), transparent credibility sig
 
 Give it N URLs on the same story. Get the Independent Corroboration Score, the true origin, and any circular-citation loops.
 
+### `deep_research` — the full investigation
+
+Decomposes the question into falsifiable sub-questions, runs the Tribunal on each, and **iterates with gap-targeted follow-up queries** until findings converge.
+
+```
+5 sub-question(s) · 3 resolved · 1 contested · 1 unresolved · 3 round(s) · stopped: resolved
+```
+
+The loop is driven by a coverage ledger, not a countdown. Each round it diagnoses *why* a sub-question is still open and asks a different question accordingly:
+
+| Diagnosis | Follow-up strategy |
+|---|---|
+| No evidence found | broaden |
+| Only 1 independent origin | `…primary source OR original study OR official filing` |
+| Sources disagree | `…systematic review OR meta-analysis OR consensus` |
+| Refutation is thin | `…correction OR retraction OR rebuttal` |
+| Confidence below bar | `…data OR statistics OR report` |
+
+Stops on `resolved`, `no-progress` (a whole round added no new independent evidence), or `budget` — and **always tells you which**.
+
+Modes: `quick` (1 round) · `standard` (3) · `deep` (6) · `forensic` (12, requires 3 independent origins).
+
 ---
 
 ## How it works
@@ -123,7 +145,9 @@ INTAKE ──> RECALL ──> ACQUIRE ──> ADJUDICATE ──> GROUND ──> 
 
 - **M1 — Mechanical anchoring.** Quotes verified by string match, not model opinion.
 - **M2 — Independent Corroboration Score.** Syndication, derivation, quote-propagation and circular citation collapse to true origins.
-- **M3 — The Tribunal.** A **Prosecutor** actively hunts disconfirming evidence (`"X debunked"`, `"X failed to replicate"`). Refutation search is a *required stage*, so confirmation bias is structurally impossible.
+- **M3 — The Tribunal.** A **Prosecutor** actively hunts disconfirming evidence (`"X debunked"`, `"X failed to replicate"`) while a **Defender** builds the strongest case. A rule-based **Adjudicator** — deliberately not another LLM call — weighs both sides by independent origins and credibility, and **records dissent instead of smoothing it away**. Refutation search is a *required stage*, so confirmation bias is structurally impossible.
+
+  Two rules that matter: a claim backed by **one origin is never "settled"** no matter how many outlets republished it, and **credible dissent blocks a SUPPORTED verdict** outright.
 - **M4 — Tiered acquisition.** plain fetch → Jina Reader → crawl4ai/scrapling → camoufox/patchright → OCR. Every tier failure is **surfaced, never silently swallowed.**
 - **M5 — Compounding evidence graph.** Verified claims persist with per-claim freshness (immutable 5y / slow 6mo / fast 24h). Perplexity restarts from zero every query, forever. This doesn't.
 
@@ -162,10 +186,21 @@ This project is about not overstating things, so:
 A tool about verifiable claims should not ship unverifiable claims.
 
 ```bash
-npm test    # 120 tests, 0 dependencies
+npm test    # 162 tests, 0 dependencies
 ```
 
-The suite includes **adversarial tests** asserting the guarantees above — a lying judge that invents quotes, four syndicated sources posing as independent corroboration, forged publication dates, a rewritten permalink, SSR render timestamps posing as publish dates, and false-positive guards protecting legitimate ESL and technical writing from slop penalties.
+The suite includes **adversarial tests** asserting the guarantees above — a lying judge that invents quotes, four syndicated sources posing as independent corroboration, forged publication dates, a rewritten permalink, SSR render timestamps posing as publish dates, a research loop that must stop early when stuck, and false-positive guards protecting legitimate ESL and technical writing from slop penalties.
+
+Three real bugs were caught by these tests during development: a 2-node citation cycle inflating the independence score (fixed via condensation-graph source detection), a leaked SQLite file handle on Windows, and a test fixture whose "independent" sources were correctly detected as near-duplicates.
+
+### Try it without installing anything
+
+```bash
+npx dsh-deep-research compare <url1> <url2> <url3>   # independence analysis, no LLM
+npx dsh-deep-research source <url>                   # credibility + date integrity
+npx dsh-deep-research plan "<question>"              # see the decomposition
+npx dsh-deep-research modes                          # depth presets
+```
 
 Benchmark harness (SimpleQA / FRAMES / LongFact / ALCE citation precision) is in progress; **numbers will be published here rather than claimed.**
 

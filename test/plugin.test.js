@@ -10,8 +10,10 @@ import assert from 'node:assert/strict'
 
 import {
   apply,
+  hashId,
   inject,
   makeAtomizer,
+  makeDecomposer,
   makeFetch,
   makeJudge,
   makeSearch,
@@ -144,6 +146,43 @@ test('tools are registered when a tools service is present', () => {
   assert.ok(registered.includes('verify_text'), 'verify_text must be registered')
   assert.ok(registered.includes('check_source'))
   assert.ok(registered.includes('compare_sources'))
+  assert.ok(registered.includes('deep_research'), 'deep_research must be registered')
+})
+
+test('hashId is stable and collision-resistant enough for keys', () => {
+  assert.equal(hashId('https://example.com/a'), hashId('https://example.com/a'))
+  assert.notEqual(hashId('https://example.com/a'), hashId('https://example.com/b'))
+  assert.match(hashId('anything'), /^[0-9a-z]+$/)
+})
+
+test('makeDecomposer is absent without an llm and parses JSON with one', async () => {
+  assert.equal(makeDecomposer({}), undefined)
+  const d = makeDecomposer({
+    llm: { generate: async () => 'Here:\n["Sub question one here?","Sub question two here?"]' },
+  })
+  assert.deepEqual(await d('parent question'), ['Sub question one here?', 'Sub question two here?'])
+})
+
+test('makeDecomposer returns empty on malformed output rather than throwing', async () => {
+  const d = makeDecomposer({ llm: { generate: async () => 'no json' } })
+  assert.deepEqual(await d('q'), [])
+})
+
+test('deep_research tool runs end to end without network or llm', async () => {
+  /** @type {any[]} */ const specs = []
+  apply({ tools: { register: (s) => specs.push(s) }, on: () => {} }, { storePath: ':memory:' })
+  const dr = specs.find((s) => s.name === 'deep_research')
+  assert.ok(dr, 'deep_research must exist')
+  const out = await dr.execute({ question: 'Does a test question resolve cleanly?', mode: 'quick' })
+  assert.match(out, /Research trace/)
+  assert.match(out, /Does a test question resolve/)
+})
+
+test('deep_research declares its mode enum', () => {
+  /** @type {any[]} */ const specs = []
+  apply({ tools: { register: (s) => specs.push(s) }, on: () => {} }, { storePath: ':memory:' })
+  const dr = specs.find((s) => s.name === 'deep_research')
+  assert.deepEqual(dr.parameters.mode.enum, ['quick', 'standard', 'deep', 'forensic'])
 })
 
 test('registration failure in the host does not break plugin load', () => {
