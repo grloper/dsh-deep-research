@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.log
+*.tgz
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Evidence stores must never be committed: they contain fetched page text.
+*.db
+*.db-journal
+*.db-wal
+.veritas/
+bench/results/

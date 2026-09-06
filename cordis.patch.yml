@@ -1,0 +1,5 @@
+# dsh-deep-research (VERITAS) bundle patch
+# Mounts the host-half research/verification tools into DeepSeek Harness.
+- insert:
+    - id: veritas-research
+      name: dsh-deep-research

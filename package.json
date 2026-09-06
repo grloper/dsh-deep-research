@@ -1,0 +1,81 @@
+{
+  "name": "dsh-deep-research",
+  "version": "0.1.0",
+  "description": "VERITAS — adversarial deep-research engine for DeepSeek Harness. Mechanically-verified citations, independent-corroboration scoring that exposes syndication laundering, prosecutor/defender claim tribunal, and a compounding evidence graph.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "bin": {
+    "dsh-deep-research": "bin/veritas.mjs"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "data",
+    "skills",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node --test \"test/**/*.test.js\"",
+    "test": "node --test \"test/**/*.test.js\"",
+    "bench": "node bench/run.mjs"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "deep-research",
+    "research-agent",
+    "fact-checking",
+    "hallucination-detection",
+    "citation-verification",
+    "rag",
+    "knowledge-graph",
+    "osint",
+    "veritas"
+  ],
+  "author": "grloper (https://github.com/grloper)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grloper/dsh-deep-research.git"
+  },
+  "homepage": "https://github.com/grloper/dsh-deep-research#readme",
+  "bugs": {
+    "url": "https://github.com/grloper/dsh-deep-research/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/dsh-host-webserver": "*",
+    "@deepseek-ai/dsh-home-paths": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "@deepseek-ai/dsh-llm": { "optional": true },
+    "@deepseek-ai/dsh-host-webserver": { "optional": true },
+    "@deepseek-ai/dsh-home-paths": { "optional": true }
+  }
+}
