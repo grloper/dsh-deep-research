@@ -271,3 +271,47 @@ test('every registered tool declares a name, description and parameters', () => 
     assert.equal(typeof s.execute, 'function')
   }
 })
+test('CORE: deep_research stores ONE canonical claim per question, not one per facet', async () => {
+  // Regression: the planner fans one question into several facet sub-questions
+  // ("<q>", "<q> evidence study data", ...). The loop keyed graph rows on the
+  // sub-question ORDINAL (q1-, q2-) and index.js persisted a second copy under
+  // a different id scheme, so research_recall returned three-to-four rows for a
+  // single finding — including raw facet suffixes shown to the user as claims.
+  const body =
+    'A 2024 randomized controlled trial found the intervention improved sleep ' +
+    'efficiency by 14% over eight weeks among 320 adults at twelve sites.'
+  const other =
+    'An independent review of separate randomized studies concluded the ' +
+    'intervention improved sleep efficiency by roughly 14% in adult populations.'
+  const corpus = { 'https://a.example/1': body, 'https://b.example/2': other }
+
+  /** @type {any[]} */ const specs = []
+  apply(
+    {
+      tools: { register: (s) => specs.push(s) },
+      on: () => {},
+      web: {
+        search: async () => ({
+          sources: Object.keys(corpus).map((u) => ({ url: u, snippet: corpus[u].slice(0, 120) })),
+        }),
+        fetch: async ({ url }) => ({ content: corpus[url] }),
+      },
+    },
+    { storePath: ':memory:' },
+  )
+
+  const question = 'Did the intervention improve sleep efficiency by 14%?'
+  await specs.find((s) => s.name === 'deep_research').execute({ question, mode: 'quick' })
+  const recall = await specs
+    .find((s) => s.name === 'research_recall')
+    .execute({ query: 'sleep efficiency intervention' })
+
+  const entries = (recall.match(/^- \*\*/gm) ?? []).length
+  assert.equal(entries, 1, `expected exactly one canonical claim, got ${entries}:\n${recall}`)
+  assert.doesNotMatch(
+    recall,
+    /evidence study data|official report OR primary source/,
+    'raw facet suffixes must never surface as stored claims',
+  )
+  assert.match(recall, /Did the intervention improve sleep efficiency by 14%\?/)
+})
