@@ -177,14 +177,42 @@ test('makeDecomposer returns empty on malformed output rather than throwing', as
   assert.deepEqual(await d('q'), [])
 })
 
-test('deep_research tool runs end to end without network or llm', async () => {
+test('deep_research reports WHY it cannot run when the host has no search', async () => {
+  // CORE UX GUARANTEE: with no web service the engine must say so explicitly.
+  // Previously it ran the full round budget, found zero evidence by
+  // construction, and returned a "0 resolved" report that users experienced as
+  // "I activated it and nothing happened".
   /** @type {any[]} */ const specs = []
   apply({ tools: { register: (s) => specs.push(s) }, on: () => {} }, { storePath: ':memory:' })
   const dr = specs.find((s) => s.name === 'deep_research')
   assert.ok(dr, 'deep_research must exist')
   const out = await dr.execute({ question: 'Does a test question resolve cleanly?', mode: 'quick' })
-  assert.match(out, /Research trace/)
   assert.match(out, /Does a test question resolve/)
+  assert.match(out, /could not run/i, 'must state that research could not run')
+  assert.match(out, /search/i, 'must name the missing capability')
+})
+
+test('deep_research runs end to end and cites evidence when search exists', async () => {
+  /** @type {any[]} */ const specs = []
+  const body =
+    'An official agency filing confirmed that the updated guidance took effect on 1 March 2024 ' +
+    'for all registered operators nationwide.'
+  const ctx = {
+    tools: { register: (s) => specs.push(s) },
+    on: () => {},
+    web: {
+      search: async () => ({ sources: [{ url: 'https://agency.example/guidance', title: 'Guidance', snippet: body }] }),
+      fetch: async () => ({ content: body }),
+    },
+  }
+  apply(ctx, { storePath: ':memory:' })
+  const dr = specs.find((s) => s.name === 'deep_research')
+  const out = await dr.execute({ question: 'Did the agency publish updated guidance', mode: 'quick' })
+  assert.match(out, /Research trace/)
+  assert.doesNotMatch(out, /could not run/i)
+  // With the deterministic lexical judge, real evidence must be admitted even
+  // though no LLM is available anywhere in this session.
+  assert.match(out, /agency\.example/, 'a real source must be cited')
 })
 
 test('deep_research declares its mode enum', () => {

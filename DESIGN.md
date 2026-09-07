@@ -56,7 +56,7 @@ Best-in-class OSS elsewhere (GPT-Researcher 29k★, STORM 31k★, dzhng 19.6k★
 
 ---
 
-## 3. The five mechanisms (this is the whole product)
+## 3. The six mechanisms (this is the whole product)
 
 ### M1 — Mechanical citation anchoring (kills F1, no LLM trust required)
 
@@ -141,6 +141,55 @@ Freshness is per-claim, by volatility class:
 
 Perplexity restarts from zero on every query, forever. Kestrel gets *better the more you use it*.
 Export to Obsidian (claim notes + backlinks), Mermaid, and a machine-readable evidence bundle.
+
+### M6 — Deterministic fallback judge + capability preflight (kills the silent no-op)
+
+Every mechanism above is gated on a judge returning a verbatim quote that is then
+anchored mechanically. That gate is right, but it makes the *fallback* judge
+load-bearing in a way that is easy to get catastrophically wrong.
+
+The original fallback was:
+
+```js
+judge: makeJudge(ctx) ?? (async () => ({ verdict: 'NEUTRAL', quote: '', score: 0 }))
+```
+
+The Tribunal admits only `SUPPORTED`/`PARTIAL`/`CONTRADICTED` evidence. A
+constant-`NEUTRAL` judge therefore discards **every document retrieved**. The
+loop runs its full budget, finds nothing *by construction*, and reports
+"0 sub-questions resolved". The user's experience is: *"I activated deep research
+and nothing happened."*
+
+**A stub that guarantees zero output is not degradation — it is a silent
+failure.** The fallback must be a real judge:
+
+```
+document → sentence split (≥ anchorable length)
+         → IDF weights over the document's OWN sentences
+         → score(claim ∩ sentence) + normalised-figure agreement bonus
+         → best sentence below relevance floor ? NEUTRAL (honest)
+         → stance: negation cues vs affirmation cues
+         → SUPPORTED | PARTIAL | CONTRADICTED  + the sentence VERBATIM
+```
+
+Two properties make this safe to trust:
+
+- **It cannot fabricate.** The quote is *selected* from the document, so it
+  passes M1 anchoring by construction. The gate is never weakened.
+- **It cannot overclaim.** Below the relevance floor it returns `NEUTRAL`, and
+  `judgeKind` is reported in every trace so a degraded run is legible as such.
+
+Paired with this, a **capability preflight** distinguishes the two failure modes
+that used to look identical:
+
+| Condition | Old behaviour | New behaviour |
+|---|---|---|
+| No search service | empty "0 resolved" report | explicit **"research could not run: no web-search capability"** |
+| No LLM | empty "0 resolved" report | full run via lexical judge, degradation stated |
+| Genuinely no evidence | empty "0 resolved" report | `exhausted`, with the queries tried |
+
+A capability problem is reported as a capability problem — never as an absence of
+evidence.
 
 ---
 

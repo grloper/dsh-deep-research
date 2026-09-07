@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 
 import {
   assessCoverage,
+  baseQuestion,
   gapQuery,
   heuristicDecompose,
   mergeVerdicts,
@@ -72,9 +73,38 @@ test('heuristicDecompose splits compound questions', () => {
   assert.ok(parts.length >= 2, `expected a split, got ${JSON.stringify(parts)}`)
 })
 
-test('heuristicDecompose returns the whole question when atomic', () => {
+test('heuristicDecompose never emits a fragment that lost its predicate', () => {
+  // Regression: the old splitter turned this into ['Compare Rust','Go for backend
+  // services'] — two corrupted fragments issued verbatim as search queries.
+  const parts = heuristicDecompose('Compare Rust and Go for backend services')
+  for (const p of parts) {
+    assert.ok(p.length > 12, `fragment too short to be a real question: ${p}`)
+    assert.ok(!/^Compare Rust$/i.test(p), 'must not sever the predicate')
+  }
+  assert.ok(
+    parts.some((p) => /rust/i.test(p) && /go/i.test(p)),
+    'the intact question must survive decomposition',
+  )
+})
+
+test('heuristicDecompose fans an atomic question across evidence facets', () => {
   const parts = heuristicDecompose('What is the capital of France')
-  assert.equal(parts.length, 1)
+  assert.ok(parts.length > 1, 'a single topic should still drive a multi-angle search')
+  assert.equal(parts[0], 'What is the capital of France', 'the verbatim question comes first')
+  // Every facet must be INDEPENDENTLY answerable. Refutation-hunting is the
+  // Tribunal's dedicated prosecutor stage, not a sub-question: a
+  // "counterevidence" facet has no affirmative answer of its own and would be
+  // scored as a permanent coverage gap.
+  for (const p of parts) {
+    assert.ok(/capital of France/i.test(p), `facet lost the subject: ${p}`)
+    assert.doesNotMatch(p, /criticism|counterevidence|debunk/i, 'adversarial probing belongs to the Tribunal')
+  }
+})
+
+test('heuristicDecompose honours a single-slot budget', () => {
+  assert.deepEqual(heuristicDecompose('What is the capital of France', 1), [
+    'What is the capital of France',
+  ])
 })
 
 test('assessCoverage flags missing evidence as a broaden gap', () => {
@@ -169,11 +199,43 @@ test('mergeVerdicts lets a later round overturn an earlier verdict', () => {
 })
 
 test('research resolves a well-supported question and stops early', async () => {
-  const r = await research('Did the agency publish updated guidance', { tribunal: supportingDeps(3) }, { mode: 'standard' })
+  const r = await research(
+    'Did the agency publish updated guidance',
+    { tribunal: supportingDeps(3) },
+    { mode: 'standard' },
+  )
   assert.equal(r.stopReason, 'resolved')
   assert.ok(r.rounds < MODES.standard.rounds, `should stop before exhausting rounds, used ${r.rounds}`)
   assert.equal(r.coverage, 1)
-  assert.equal(r.subQuestions[0].status, 'resolved')
+  for (const s of r.subQuestions) {
+    assert.equal(s.status, 'resolved', `${s.id} should be resolved`)
+  }
+})
+
+test('CORE: status buckets always account for every sub-question', async () => {
+  // Regression: a sub-question diagnosed as a coverage GAP was still stamped
+  // 'resolved', so the summary printed "0 resolved · 0 contested · 0 unresolved"
+  // for work that HAD run — indistinguishable from "nothing happened".
+  const oneOrigin = {
+    gather: async (q) =>
+      /debunk|false|retract|replicate|criticism|against/i.test(q)
+        ? []
+        : [{ id: 'solo', url: 'https://solo.example', text: DISTINCT_BODIES[0], publishedAt: T0 }],
+    judge: async (_c, doc) => ({ verdict: Verdict.SUPPORTED, quote: doc.text.slice(0, 60), score: 0.9 }),
+    anchor: (quote, text) => ({ ok: text.includes(quote), matchedText: quote }),
+    credibility: () => ({ score: 70, isPrimary: false }),
+  }
+  const r = await research('A single-origin question', { tribunal: oneOrigin }, { mode: 'standard' })
+  const counted = ['resolved', 'weak', 'contested', 'exhausted'].reduce(
+    (a, k) => a + r.subQuestions.filter((s) => s.status === k).length,
+    0,
+  )
+  assert.equal(counted, r.subQuestions.length, 'every sub-question must land in exactly one bucket')
+  assert.ok(
+    r.subQuestions.some((s) => s.status === 'weak'),
+    'single-origin support is weak, not resolved',
+  )
+  assert.match(r.summary, /weakly evidenced/)
 })
 
 test('CORE: research stops early when a round adds nothing new', async () => {
@@ -264,4 +326,72 @@ test('timeline records every round', async () => {
   const r = await research('A logged question', { tribunal: supportingDeps(2) }, { mode: 'standard' })
   assert.ok(r.timeline.length >= 2)
   assert.ok(r.timeline.some((t) => /Round 1/.test(t)))
+})
+test('CORE: equivalent reformulations collapse into one finding', async () => {
+  // Facet sub-questions are search reformulations of ONE question. Rendering
+  // each in full repeated the same quotes three times, which reads as padding
+  // and buries the actual finding.
+  const r = await research(
+    'Did the agency publish updated guidance',
+    { tribunal: supportingDeps(3) },
+    { mode: 'quick' },
+  )
+  const md = renderResearch(r, renderVerdict)
+  const blocks = (md.match(/^### /gm) ?? []).length
+  assert.ok(
+    blocks < r.subQuestions.length,
+    `expected fewer verdict blocks than sub-questions, got ${blocks} of ${r.subQuestions.length}`,
+  )
+  assert.match(md, /equivalent reformulation/)
+})
+
+test('baseQuestion strips facet suffixes back to the asked question', () => {
+  const q = 'Did the agency publish updated guidance'
+  assert.equal(baseQuestion(`${q} evidence study data`, q), q)
+  assert.equal(baseQuestion(`${q} official report OR primary source`, q), q)
+  assert.equal(baseQuestion(q, q), q)
+  // Independent sub-questions from an LLM planner are left untouched.
+  assert.equal(baseQuestion('A wholly different sub-question', q), 'A wholly different sub-question')
+})
+
+test('contested and unresolved lists never repeat a reformulation', async () => {
+  const divided = {
+    gather: async (q) =>
+      /debunk|false|retract|replicate|criticism|against/i.test(q)
+        ? [{ id: 'r0', url: 'https://r0.example', text: DISTINCT_BODIES[4], publishedAt: T0 }]
+        : [{ id: 's0', url: 'https://s0.example', text: DISTINCT_BODIES[0], publishedAt: T0 }],
+    judge: async (_c, doc) => ({
+      verdict: /satellite/i.test(doc.text) ? Verdict.CONTRADICTED : Verdict.SUPPORTED,
+      quote: doc.text.slice(0, 60),
+      score: 0.8,
+    }),
+    anchor: (quote, text) => ({ ok: text.includes(quote), matchedText: quote }),
+    credibility: () => ({ score: 70, isPrimary: false }),
+  }
+  const r = await research('Is the northern site expanding', { tribunal: divided }, { mode: 'standard' })
+  const md = renderResearch(r, renderVerdict)
+  const section = md.split('## ⚖️ Contested points')[1]
+  if (section) {
+    const bullets = (section.split('##')[0].match(/^- .+$/gm) ?? []).map((b) => b.slice(2).trim())
+    assert.deepEqual(bullets, [...new Set(bullets)], 'no duplicate contested points')
+    for (const b of bullets) {
+      assert.doesNotMatch(b, /evidence study data|official report OR primary source/i)
+    }
+  }
+})
+
+test('a run blocked by missing capabilities renders an explicit reason', async () => {
+  const r = await research(
+    'Anything at all',
+    { tribunal: supportingDeps(3) },
+    {
+      mode: 'deep',
+      capabilities: { search: false, llm: false, judgeKind: 'lexical', plannerKind: 'heuristic', usable: false, degraded: ['No web-search service: the engine cannot discover sources.'] },
+    },
+  )
+  assert.equal(r.stopReason, 'unavailable')
+  assert.equal(r.rounds, 0, 'must not burn rounds it cannot use')
+  const md = renderResearch(r, renderVerdict)
+  assert.match(md, /could not run/i)
+  assert.match(md, /search/i)
 })

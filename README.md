@@ -170,7 +170,7 @@ Registered automatically with the host agent.
 
 ---
 
-## The five mechanisms
+## The six mechanisms
 
 ### M1 · Mechanical citation anchoring
 
@@ -200,6 +200,39 @@ Verified claims persist in a local store (`node:sqlite` when available, transpar
 | `SLOW` | ~6 months | company structure, policy |
 | `FAST` | 24 hours | prices, polls, "current CEO" |
 
+### M6 · Deterministic fallback judge — the engine never silently no-ops
+
+Every stage above is gated on a judge returning a **verbatim quote** that is then
+located mechanically in the source. That gate is correct. The danger is what
+happens when no language model is available.
+
+A judge that returns `NEUTRAL` for everything is not graceful degradation — the
+tribunal only admits `SUPPORTED`/`PARTIAL`/`CONTRADICTED` evidence, so such a
+stub discards **100% of retrieved documents**. The loop then spends its whole
+round budget, finds nothing by construction, and reports "0 resolved". To a user
+that is indistinguishable from activating deep research and having *nothing
+happen*.
+
+So the LLM-free path is a real judge, not a stub:
+
+1. **IDF-weighted sentence selection** over the document's own sentences, so a
+   term appearing in every sentence (usually the page topic) carries little
+   weight while a rare, specific term carries a lot. A page that merely
+   *mentions* the subject does not score as one that *addresses* the assertion.
+2. **Normalised figure matching** — `8`, `8%` and `8.0` compare equal, and an
+   exact numeric agreement sharpens relevance well beyond word overlap.
+3. **Stance detection** weighing negation cues (`debunked`, `failed to
+   replicate`, `found no`) against affirmation cues, so refutation is captured
+   rather than collapsed into support.
+4. **Structural honesty** — the quote is *selected* from the document, never
+   generated, so this judge is incapable of fabricating a citation. Below a
+   relevance floor it returns an honest `NEUTRAL`.
+
+Alongside it, a **capability preflight** reports what is actually wired. A run
+with no search service returns an explicit *"research could not run: no
+web-search capability"* report instead of an empty one — a capability problem is
+reported as a capability problem, never as an absence of evidence.
+
 ---
 
 ## Architecture
@@ -216,6 +249,7 @@ lib/
 ├── graph.js        M5 · BM25 + entity + RRF hybrid recall
 ├── credibility.js  source typing, credibility and slop signals
 ├── verify.js       verify_text pipeline
+├── judge.js        M6 · zero-LLM lexical entailment judge + capability preflight
 └── research.js     deep_research loop, coverage assessment, gap queries
 ```
 
@@ -230,7 +264,7 @@ lib/
 ## Verification
 
 ```bash
-npm test        # 218 tests
+npm test        # 252 tests
 npm run demo    # end-to-end proof, offline
 npm run bench   # throughput and scaling benchmark
 ```
@@ -243,6 +277,11 @@ Notable regression guards:
 - A **`NEUTRAL` source never becomes a citation** — a source that does not address the claim is not evidence for it.
 - **200,000 distinct URLs produce zero id collisions**, protecting a store designed to accumulate for years.
 - **Fuzzy anchoring stays linear**; the incremental sliding window replaced an O(document × quote) scan and cut a 40k-token match from ~290 ms to ~45 ms.
+- **With no LLM anywhere, a research run still admits real anchored evidence** — guarding the regression where the fallback judge discarded every document and the engine silently produced nothing.
+- **Every quote the fallback judge emits survives mechanical anchoring**, because it is selected from the document rather than generated.
+- **Status buckets always sum to the sub-question count**, so a report can never print `0 resolved · 0 contested · 0 unresolved` for work that actually ran.
+- **A missing search service yields an explicit "could not run" report**, never an empty findings list.
+- **Decomposition never emits a fragment that lost its predicate** — `Compare Rust and Go for backend services` must not become `["Compare Rust", "Go for backend services"]`.
 
 > If a test run needs to avoid per-file process spawning (restricted sandboxes, some CI images), use `npm run test:serial`.
 
@@ -269,9 +308,9 @@ The local-model fast path is **off by default** and self-disabling: a research t
 Stated plainly, because a verification tool that oversells itself is self-refuting:
 
 - **Anchoring proves quotation, not truth.** A source can be quoted perfectly and still be wrong. Kestrel reports *what the evidence says and how independent it is*, not ground truth.
-- **Entailment quality depends on the host LLM.** The mechanical gate makes a fabricated quote impossible; it does not make a bad judgement impossible.
+- **Entailment quality depends on the host LLM.** The mechanical gate makes a fabricated quote impossible; it does not make a bad judgement impossible. Without an LLM the deterministic lexical judge (M6) still admits real anchored evidence, but it reasons over vocabulary overlap rather than meaning: it will miss a paraphrase that shares no salient terms, and every report states which judge produced it.
 - **Independence detection is textual.** Two outlets that independently interview the same source produce different text and will count as two origins.
-- **Without a search service the engine degrades to heuristics.** It will tell you so rather than pretend.
+- **Without a search service the engine cannot run at all,** and says so explicitly rather than returning an empty report. Source discovery is the one capability with no offline substitute.
 
 ---
 
