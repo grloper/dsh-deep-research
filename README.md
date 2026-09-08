@@ -7,7 +7,7 @@
 <sub>`dsh-deep-research` · a DeepSeek Harness plugin and standalone library · zero runtime dependencies</sub>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-231%20passing-brightgreen.svg)](#verification)
+[![Tests](https://img.shields.io/badge/tests-262%20passing-brightgreen.svg)](#verification)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)](package.json)
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-5865f2.svg)](https://github.com/topics/dsh-plugin)
 
@@ -239,8 +239,8 @@ reported as a capability problem, never as an absence of evidence.
 
 ```
 lib/
-├── index.js        Host plugin: tool registration, service adapters, Client↔Host RPC
-├── client.js       Browser half: Verify action, composer toggle, settings dashboard
+├── index.js        Host plugin: tool registration, service adapters, harness RPC + /kestrel/api HTTP bridge
+├── client.js       Browser half: Verify action, Deep Research launcher, settings dashboard (HTTP bridge)
 ├── anchor.js       M1 · mechanical citation anchoring + admission gate
 ├── lineage.js      M2 · MinHash/LSH/SCC independence analysis
 ├── tribunal.js     M3 · prosecutor/defender adjudication
@@ -264,7 +264,7 @@ lib/
 ## Verification
 
 ```bash
-npm test        # 252 tests
+npm test        # 262 tests
 npm run demo    # end-to-end proof, offline
 npm run bench   # throughput and scaling benchmark
 ```

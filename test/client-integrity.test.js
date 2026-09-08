@@ -41,9 +41,10 @@ test('the client does not hardcode phantom-rate or anchoring KPIs', () => {
   )
 })
 
-test('the client calls the host verify RPC and has no offline verdict fallback', () => {
-  assert.ok(source.includes('host.call("verify"'), 'must call the real host RPC')
-  assert.ok(source.includes('host.call("stats"'), 'settings must read real store stats')
+test('the client calls the host engine over the HTTP bridge and has no offline verdict fallback', () => {
+  assert.ok(source.includes('kestrelCall("verify"'), 'must call the real host engine to verify')
+  assert.ok(source.includes('kestrelGet("stats"'), 'settings must read real store stats')
+  assert.ok(source.includes('/kestrel/api'), 'the same-origin API path must be targeted')
   assert.ok(
     /host engine is not reachable/i.test(source),
     'must surface an explicit unavailable state instead of guessing',
@@ -58,12 +59,9 @@ test('the client reads message text from slot props before touching the DOM', ()
   assert.ok(propsAt < domAt, 'slot props must be consulted before the rendered DOM')
 })
 
-test('the client bounds its per-session state to avoid an unbounded leak', () => {
-  assert.ok(source.includes('MAX_TRACKED_SESSIONS'), 'session map must be capped')
-  assert.ok(
-    source.includes('deepResearchModeState.clear()'),
-    'session state must be cleared on plugin unload',
-  )
+test('the client keeps no module-level per-session state that could leak across reloads', () => {
+  assert.ok(!/deepResearchModeState/.test(source), 'the old unbounded per-session map must be gone')
+  assert.ok(source.includes('KESTREL_API_BASE'), 'all engine access goes through the bounded HTTP bridge')
 })
 
 test('the client uses no JSX and no bare imports, as the Cordis evaluator requires', () => {

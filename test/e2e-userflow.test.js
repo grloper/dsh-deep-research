@@ -1,16 +1,17 @@
 /**
- * @file End-to-end user-flow test: browser Client ↔ Host RPC ↔ engine.
+ * @file End-to-end user-flow test: browser Client ↔ Host HTTP API ↔ engine.
  *
  * This exercises the exact path a user takes when they click "Verify" on an
  * assistant message. Before v0.2 this path was broken end to end: the Client
- * called `host.call('verify', …)` but the Host never registered a `verify`
- * handler, so the call always failed and the UI silently rendered a fabricated
- * verdict instead. Nothing in the old suite caught that, because each half was
- * only ever tested in isolation.
+ * called a nonexistent `host.call('verify', …)` global, so the click never
+ * reached the Host and the UI silently did nothing. The bridge that actually
+ * exists for DSH client plugins is a same-origin HTTP route registered on the
+ * host webserver (`/kestrel/api`), so these tests drive the real client bundle
+ * through a fetch double that routes those requests to a real `apply()` host.
  *
- * Here the real client bundle is evaluated in a sandboxed DOM-ish context, wired
- * to a real `apply()` host through a real RPC boundary, and driven the way the
- * browser drives it.
+ * Here the real client bundle is evaluated in a sandboxed DOM-ish context,
+ * wired to a real `apply()` host through the HTTP contract, and driven the way
+ * the browser drives it.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -27,17 +28,23 @@ const SOURCE_TEXT =
   'serving an estimated 40,000 passengers on its first day of operation.'
 
 /**
- * Boot a host with an in-memory store and an offline search/fetch/LLM stack, and
- * return its RPC surface exactly as the browser would see it.
+ * Boot a host with an in-memory store and an offline search/fetch/LLM stack.
+ * Returns the harness handlers plus a browser-shaped `fetch` that routes
+ * `/kestrel/api/<method>` POSTs to the same engine the server would run.
  */
 function bootHost({ judgeQuote, judgeVerdict = Verdict.SUPPORTED } = {}) {
   const handlers = new Map()
   const harness = { handle: (m, fn) => handlers.set(m, fn) }
+  let webRoute = null
 
   const ctx = {
     harness,
     tools: { register: () => () => {} },
     on: () => {},
+    effect: (fn) => { fn(); return () => {} },
+    webServer: {
+      register: (spec) => { webRoute = spec; return () => {} },
+    },
     web: {
       search: async () => ({ sources: [{ url: 'https://transit.example.gov/opening', title: 'Line opening' }] }),
       fetch: async () => ({ content: SOURCE_TEXT, status: 200 }),
@@ -55,39 +62,77 @@ function bootHost({ judgeQuote, judgeVerdict = Verdict.SUPPORTED } = {}) {
   }
 
   const result = apply(ctx, { storePath: ':memory:', maxSources: 2 })
-  return {
-    result,
-    host: {
-      call: (method, args) => {
-        const fn = handlers.get(method)
-        if (!fn) throw new Error(`no host handler: ${method}`)
-        return fn(args)
-      },
+
+  const host = {
+    call: (method, args) => {
+      const fn = handlers.get(method)
+      if (!fn) throw new Error(`no host handler: ${method}`)
+      return fn(args)
     },
   }
+  assert.ok(webRoute, 'apply() must register the browser HTTP route')
+
+  // Browser-facing transport: fetch against the same webServer route handler
+  // the host process registers at /kestrel/api.
+  const fetch = async (url, init = {}) => {
+    const target = new URL(url, 'http://kestrel.local')
+    const req = { method: init?.method ?? 'GET', url: target.pathname + target.search, headers: { host: 'localhost:3080' } }
+    req.on = () => {}
+    if (init?.body !== undefined) {
+      const buf = Buffer.from(init.body)
+      req.on = (event, cb) => {
+        if (event === 'data') cb(buf)
+        if (event === 'end') setTimeout(cb, 0)
+      }
+    }
+    const settled = await new Promise((resolve, reject) => {
+      const res = { status: 0, writeHead(s) { this.status = s }, end(payload) { resolve({ status: this.status, body: payload ?? '' }) } }
+      webRoute.handler(req, res).catch(reject)
+    })
+    let json = null
+    try {
+      json = JSON.parse(settled.body)
+    } catch {
+      json = null
+    }
+    return { ok: settled.status === 200, status: settled.status, json: async () => json }
+  }
+
+  return { result, host, fetch }
 }
 
 /**
  * Evaluate the client bundle and mount its message-action component, returning
  * the captured React tree plus the state-setter driven by the user's click.
  */
-function mountClient(host) {
+function mountClient({ fetch, engineUnreachable = false } = {}) {
   let registered = null
+  const timers = []
   const sandbox = {
     console: { log() {}, warn() {}, error() {} },
-    host,
-    setTimeout,
-    clearTimeout,
+    // Component timers are captured so pending hint dismissals never keep the
+    // test process alive; async engine flows settle through microtasks only.
+    setTimeout: (fn) => { timers.push(fn); return timers.length },
+    clearTimeout: () => {},
+    fetch: engineUnreachable
+      ? async () => ({ ok: false, status: 404, json: async () => ({ ok: false, error: 'not-found' }) })
+      : fetch,
+    URLSearchParams,
     document: {
       getElementById: () => null,
       createElement: () => ({ setAttribute() {}, appendChild() {}, remove() {}, set textContent(_v) {} }),
       head: { appendChild() {} },
       addEventListener() {},
       removeEventListener() {},
+      querySelectorAll: () => [],
     },
     module: { exports: {} },
   }
-  sandbox.window = { __ModuleLoader__: { load: (m) => (registered = m) } }
+  sandbox.window = {
+    __ModuleLoader__: { load: (m) => (registered = m) },
+    setTimeout: (fn) => { timers.push(fn); return timers.length },
+    clearTimeout: () => {},
+  }
   sandbox.globalThis = sandbox
   vm.createContext(sandbox)
   vm.runInContext(clientSource, sandbox)
@@ -133,22 +178,35 @@ function mountClient(host) {
 
   const entry = slots.find((s) => s.options.name === 'conversation.chat.assistant-actions')
   assert.ok(entry, 'the Verify action must be registered')
+  const composerEntry = slots.find((s) => s.options.name === 'conversation.input.left')
+  assert.ok(composerEntry, 'the Deep Research composer button must be registered')
+
+  /**
+   * Unwrap one registered slot component into the concrete element tree.
+   */
+  const renderSlot = (slotEntry, props) => {
+    cursor = 0
+    refCursor = 0
+    let node = slotEntry.component(props)
+    let guard = 0
+    while (node && typeof node === 'object' && typeof node.type === 'function' && guard++ < 5) {
+      node = node.type(node.props || {})
+    }
+    return node
+  }
 
   return {
     /**
-     * Render the slot component. The slot registers a thin wrapper around the
-     * real function component, so unwrap function elements until the concrete
-     * host-element tree the user actually sees is reached.
+     * Render the Verify message-action component.
      */
     render(props) {
-      cursor = 0
-      refCursor = 0
-      let node = entry.component(props)
-      let guard = 0
-      while (node && typeof node === 'object' && typeof node.type === 'function' && guard++ < 5) {
-        node = node.type(node.props || {})
-      }
-      return node
+      return renderSlot(entry, props)
+    },
+    /**
+     * Render the Deep Research composer component.
+     */
+    renderComposer(props) {
+      return renderSlot(composerEntry, props)
     },
     /** Run any effects the last render queued. */
     async flushEffects() {
@@ -156,6 +214,7 @@ function mountClient(host) {
       for (const fn of queued) await fn()
     },
     states,
+    timers,
   }
 }
 
@@ -227,8 +286,7 @@ function settle(ms = 50) {
 
 test('E2E: clicking Verify runs the real host engine and renders its verdict', async () => {
   // The judge quotes the source verbatim, so the mechanical gate admits it.
-  const { host } = bootHost({ judgeQuote: 'the new line opened on 12 March 2024' })
-  const ui = mountClient(host)
+  const ui = mountClient(bootHost({ judgeQuote: 'the new line opened on 12 March 2024' }))
 
   const props = { messageId: 'm1', text: 'The new transit line opened on 12 March 2024.' }
 
@@ -245,8 +303,7 @@ test('E2E: clicking Verify runs the real host engine and renders its verdict', a
 
 test('E2E: a fabricated judge quote yields UNVERIFIED, never a fake SUPPORTED', async () => {
   // The judge asserts support but quotes text that is not in the source.
-  const { host } = bootHost({ judgeQuote: 'the line opened on 9 September 1999 carrying two million riders' })
-  const ui = mountClient(host)
+  const ui = mountClient(bootHost({ judgeQuote: 'the line opened on 9 September 1999 carrying two million riders' }))
 
   const rendered = await clickVerify(ui, {
     messageId: 'm1',
@@ -259,8 +316,8 @@ test('E2E: a fabricated judge quote yields UNVERIFIED, never a fake SUPPORTED', 
 })
 
 test('E2E: with no host engine the UI reports unavailability instead of guessing', async () => {
-  // No `host` global at all — the pre-v0.2 code fabricated a verdict here.
-  const ui = mountClient(undefined)
+  // No engine reachable at /kestrel/api — the pre-v0.2 code silently did nothing.
+  const ui = mountClient({ engineUnreachable: true })
 
   const rendered = await clickVerify(ui, {
     messageId: 'm1',
@@ -294,4 +351,55 @@ test('E2E: an empty message is refused rather than verified into nothing', async
   const out = await host.call('verify', { text: '' })
   assert.equal(out.ok, false)
   assert.equal(out.error, 'empty-text')
+})
+
+/** Locate the Deep Research composer button in a rendered tree. */
+function composerButton(tree) {
+  const btn = findNode(
+    tree,
+    (n) => n.type === 'button' && n.props && typeof n.props.onClick === 'function' && /kestrel-composer-btn/.test(n.props.className || ''),
+  )
+  assert.ok(btn, 'the Deep Research button must be present in the rendered tree')
+  return btn
+}
+
+/**
+ * Drive a composer click: render, click Deep Research, wait for the engine
+ * round trip, then re-render and return the text the user would now see.
+ * @param {{renderComposer:Function}} ui
+ * @param {object} props
+ */
+async function clickDeepResearch(ui, props) {
+  composerButton(ui.renderComposer(props)).props.onClick()
+  await settle()
+  return textOf(ui.renderComposer(props)).join(' ')
+}
+
+test('E2E: Deep Research pill runs the real engine on the composer question', async () => {
+  // The judge quotes the source verbatim, so every sub-question it grades is
+  // mechanically anchored and the report shows real findings.
+  const ui = mountClient(bootHost({ judgeQuote: 'the new line opened on 12 March 2024' }))
+
+  const question = 'Did the new transit line open on 12 March 2024?'
+  const before = textOf(ui.renderComposer({ useInput: () => ({ text: question }) })).join(' ')
+  assert.ok(before.includes('Deep Research'), 'the pill must be rendered')
+  assert.ok(!before.includes('Copy report'), 'no report before any run')
+
+  const rendered = await clickDeepResearch(ui, { useInput: () => ({ text: question }) })
+
+  assert.doesNotMatch(rendered, /Nothing to research/, 'a question was available, so no hint popover')
+  assert.doesNotMatch(rendered, /Research unavailable/, 'the engine answered, so no error popover')
+  assert.match(rendered, /Deep Research/, 'the report panel must open')
+  assert.match(rendered, /sub-question\(s\)/, 'the engine summary must be rendered')
+  assert.match(rendered, /Copy report/, 'the markdown report must be copyable')
+})
+
+test('E2E: Deep Research pill with an empty composer explains instead of silently no-oping', async () => {
+  const ui = mountClient(bootHost({ judgeQuote: 'the new line opened on 12 March 2024' }))
+
+  const rendered = await clickDeepResearch(ui, {})
+
+  assert.match(rendered, /Nothing to research/, 'the user must get feedback when there is no question')
+  assert.match(rendered, /Type the question/, 'the hint must tell the user what to do')
+  assert.doesNotMatch(rendered, /Copy report/, 'no engine run may happen with an empty composer')
 })
