@@ -85,7 +85,9 @@ test('registerWebApi registers the /kestrel/api route when a webserver exists', 
   }))
   const route = getRoute()
   assert.ok(route, 'route must be registered')
-  assert.equal(route.kind, 'exact')
+  // Prefix routing is required: the browser calls /kestrel/api/<method>
+  // sub-paths, and an "exact" route would only ever match /kestrel/api itself.
+  assert.equal(route.kind, 'prefix')
   assert.equal(route.path, KESTREL_API_PATH)
   assert.equal(typeof route.handler, 'function')
   assert.equal(result.http, true)
