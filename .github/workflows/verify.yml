@@ -1,0 +1,46 @@
+name: Verify
+
+# Standard verification gate: workflow lint + lint/type check + existing tests.
+# Steps marked continue-on-error fail today for reasons unrelated to this gate.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install actionlint
+        run: python -m pip install actionlint-py==1.7.12.25
+      - name: Lint workflows
+        run: actionlint
+
+  verify:
+    name: lint, type check, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: ESLint
+        run: npx --yes eslint@10.12.0 .
+      - name: Tests
+        run: npm test
