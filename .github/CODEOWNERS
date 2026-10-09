@@ -1,0 +1,15 @@
+# Tests, CI and the verification gate require the owner's review.
+/.github/ @grloper
+/scripts/verify.sh @grloper
+/scripts/check-test-integrity.sh @grloper
+/AGENTS.md @grloper
+/test/ @grloper
+/tests/ @grloper
+**/tests/ @grloper
+**/test/ @grloper
+**/__tests__/ @grloper
+**/e2e/ @grloper
+*_test.* @grloper
+test_*.* @grloper
+*.test.* @grloper
+*.spec.* @grloper
